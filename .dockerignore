@@ -1,0 +1,17 @@
+# Ignore Git directory
+.git
+# Ignore Python virtual environments
+venv
+.venv
+# Ignore local environment files
+.env
+# Ignore IDE and editor directories
+.idea
+.vscode
+# Ignore Python cache
+__pycache__
+*.pyc
+# Ignore build artifacts
+build
+dist
+*.egg-info
