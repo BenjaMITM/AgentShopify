@@ -108,6 +108,7 @@ gcloud config set project "$PROJECT_ID" >/dev/null
 case "$MODE" in
   agent-engine)
     require_cmd adk
+    require_cmd python
 
     if [[ -z "$STAGING_BUCKET" ]]; then
       read -r -p "GCS staging bucket (name or gs:// URI): " STAGING_BUCKET
@@ -116,6 +117,9 @@ case "$MODE" in
     if [[ "$STAGING_BUCKET" != gs://* ]]; then
       STAGING_BUCKET="gs://${STAGING_BUCKET}"
     fi
+
+    echo "Running local syntax preflight for ${AGENT_DIR}..."
+    python -m compileall -q "$AGENT_DIR"
 
     echo "Deploying ADK agent to Vertex AI Agent Engine..."
     adk deploy agent_engine "$AGENT_DIR" \
