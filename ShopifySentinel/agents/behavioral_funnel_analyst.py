@@ -1,9 +1,8 @@
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.adk.tools import agent_tool
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools import url_context
+from ShopifySentinel.tools import maybe_mcp_toolset
 
 behavioral_funnel_analyst__google_analytics__google_search_agent = LlmAgent(
   name='Behavioral_Funnel_Analyst__Google_Analytics__google_search_agent',
@@ -71,10 +70,6 @@ Tools
   tools=[
     agent_tool.AgentTool(agent=behavioral_funnel_analyst__google_analytics__google_search_agent),
     agent_tool.AgentTool(agent=behavioral_funnel_analyst__google_analytics__url_context_agent),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://ga-remote-mcp-497115758896.us-central1.run.app',
-      ),
-    )
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_GA_URL"),
   ],
 )

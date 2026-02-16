@@ -1,9 +1,8 @@
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.adk.tools import agent_tool
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools import url_context
+from ShopifySentinel.tools import maybe_mcp_toolset
 
 catalog_integrity___merchandising_control__shopify_admin__google_search_agent = LlmAgent(
   name='Catalog_Integrity___Merchandising_Control__Shopify_Admin__google_search_agent',
@@ -72,10 +71,6 @@ Tools
   tools=[
     agent_tool.AgentTool(agent=catalog_integrity___merchandising_control__shopify_admin__google_search_agent),
     agent_tool.AgentTool(agent=catalog_integrity___merchandising_control__shopify_admin__url_context_agent),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://shopify-admin-remote-mcp-497115758896.us-central1.run.app',
-      ),
-    )
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_SHOPIFY_ADMIN_URL"),
   ],
 )

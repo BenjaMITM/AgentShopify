@@ -1,9 +1,8 @@
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.adk.tools import agent_tool
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools import url_context
+from ShopifySentinel.tools import maybe_mcp_toolset
 
 performance___visual_stability_auditor__lighthouse__google_search_agent = LlmAgent(
   name='Performance___Visual_Stability_Auditor__Lighthouse__google_search_agent',
@@ -70,15 +69,7 @@ Tools
   tools=[
     agent_tool.AgentTool(agent=performance___visual_stability_auditor__lighthouse__google_search_agent),
     agent_tool.AgentTool(agent=performance___visual_stability_auditor__lighthouse__url_context_agent),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://lighthouse-mcp-497115758896.us-central1.run.app',
-      ),
-    ),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://playwright-mcp-497115758896.us-central1.run.app',
-      ),
-    )
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_LIGHTHOUSE_URL"),
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_PLAYWRIGHT_URL"),
   ],
 )

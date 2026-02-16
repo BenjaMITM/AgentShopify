@@ -1,9 +1,8 @@
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.adk.tools import agent_tool
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools import url_context
+from ShopifySentinel.tools import maybe_mcp_toolset
 
 luxury_copy___micro_trust_editor__shopify_admin___playwright__google_search_agent = LlmAgent(
   name='Luxury_Copy___Micro_Trust_Editor__Shopify_Admin___Playwright__google_search_agent',
@@ -75,15 +74,7 @@ Tools
   tools=[
     agent_tool.AgentTool(agent=luxury_copy___micro_trust_editor__shopify_admin___playwright__google_search_agent),
     agent_tool.AgentTool(agent=luxury_copy___micro_trust_editor__shopify_admin___playwright__url_context_agent),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://shopify-admin-remote-mcp-497115758896.us-central1.run.app',
-      ),
-    ),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://playwright-mcp-497115758896.us-central1.run.app',
-      ),
-    )
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_SHOPIFY_ADMIN_URL"),
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_PLAYWRIGHT_URL"),
   ],
 )

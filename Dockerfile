@@ -12,9 +12,9 @@ RUN apt-get update \
 
 COPY ShopifySentinel /app/ShopifySentinel
 
-# ADK runtime required by ShopifySentinel/agent.py imports.
+# Keep Cloud Run runtime aligned with Agent Engine dependencies.
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir google-adk
+    && python -m pip install --no-cache-dir -r /app/ShopifySentinel/requirements.txt
 
 EXPOSE 8080
 

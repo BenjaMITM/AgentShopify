@@ -44,6 +44,40 @@ require_cmd() {
   fi
 }
 
+load_agent_env() {
+  local env_file="${AGENT_DIR}/.env"
+  if [[ -f "$env_file" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$env_file"
+    set +a
+  fi
+}
+
+validate_optional_mcp_urls() {
+  local vars=(
+    "SHOPIFY_SENTINEL_MCP_GSC_URL"
+    "SHOPIFY_SENTINEL_MCP_GA_URL"
+    "SHOPIFY_SENTINEL_MCP_LIGHTHOUSE_URL"
+    "SHOPIFY_SENTINEL_MCP_PLAYWRIGHT_URL"
+    "SHOPIFY_SENTINEL_MCP_SHOPIFY_ADMIN_URL"
+  )
+  local var
+  local url
+  local http_code
+  for var in "${vars[@]}"; do
+    url="${!var:-}"
+    if [[ -n "$url" ]]; then
+      require_cmd curl
+      http_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$url" || true)"
+      if [[ "$http_code" == "000" ]]; then
+        echo "Error: ${var} is not reachable: ${url}" >&2
+        exit 1
+      fi
+    fi
+  done
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --mode)
@@ -104,6 +138,7 @@ fi
 
 require_cmd gcloud
 gcloud config set project "$PROJECT_ID" >/dev/null
+load_agent_env
 
 case "$MODE" in
   agent-engine)
@@ -118,8 +153,20 @@ case "$MODE" in
       STAGING_BUCKET="gs://${STAGING_BUCKET}"
     fi
 
+    export GOOGLE_GENAI_USE_VERTEXAI=1
+    export GOOGLE_CLOUD_PROJECT="$PROJECT_ID"
+    export GOOGLE_CLOUD_LOCATION="$REGION"
+
+    gcloud services enable aiplatform.googleapis.com storage.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com >/dev/null
+
+    if ! gcloud storage buckets describe "$STAGING_BUCKET" >/dev/null 2>&1; then
+      echo "Creating staging bucket: $STAGING_BUCKET"
+      gcloud storage buckets create "$STAGING_BUCKET" --location="$REGION"
+    fi
+
     echo "Running local syntax preflight for ${AGENT_DIR}..."
     python -m compileall -q "$AGENT_DIR"
+    validate_optional_mcp_urls
 
     echo "Deploying ADK agent to Vertex AI Agent Engine..."
     adk deploy agent_engine "$AGENT_DIR" \
@@ -156,12 +203,31 @@ case "$MODE" in
         AUTH_FLAG="--no-allow-unauthenticated"
       fi
 
+      ENV_VARS=(
+        "GOOGLE_CLOUD_PROJECT=${PROJECT_ID}"
+        "GOOGLE_CLOUD_LOCATION=${REGION}"
+        "GOOGLE_GENAI_USE_VERTEXAI=TRUE"
+      )
+      MCP_ENV_KEYS=(
+        "SHOPIFY_SENTINEL_MCP_GSC_URL"
+        "SHOPIFY_SENTINEL_MCP_GA_URL"
+        "SHOPIFY_SENTINEL_MCP_LIGHTHOUSE_URL"
+        "SHOPIFY_SENTINEL_MCP_PLAYWRIGHT_URL"
+        "SHOPIFY_SENTINEL_MCP_SHOPIFY_ADMIN_URL"
+      )
+      for key in "${MCP_ENV_KEYS[@]}"; do
+        if [[ -n "${!key:-}" ]]; then
+          ENV_VARS+=("${key}=${!key}")
+        fi
+      done
+      ENV_VARS_CSV="$(IFS=,; echo "${ENV_VARS[*]}")"
+
       gcloud run deploy "$SERVICE_NAME" \
         --image "$IMAGE_URI" \
         --region "$REGION" \
         --platform managed \
         --port 8080 \
-        --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=TRUE" \
+        --set-env-vars "$ENV_VARS_CSV" \
         "$AUTH_FLAG"
     else
       echo "Image pushed successfully: $IMAGE_URI"

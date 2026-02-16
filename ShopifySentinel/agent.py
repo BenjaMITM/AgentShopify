@@ -1,9 +1,8 @@
 from google.adk.agents import LlmAgent
-from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
-from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.adk.tools import agent_tool
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools import url_context
+from ShopifySentinel.tools import maybe_mcp_toolset
 
 # Import sub-agents
 from ShopifySentinel.agents.friction_scout import frictionscout_playwright_mcp
@@ -82,30 +81,10 @@ Prioritization heuristic (strict)
   tools=[
     agent_tool.AgentTool(agent=siqening_store_sentinel__coordinator__google_search_agent),
     agent_tool.AgentTool(agent=siqening_store_sentinel__coordinator__url_context_agent),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://gsc-remote-mcp-497115758896.us-central1.run.app',
-      ),
-    ),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://ga-remote-mcp-497115758896.us-central1.run.app',
-      ),
-    ),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://lighthouse-mcp-497115758896.us-central1.run.app',
-      ),
-    ),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://playwright-mcp-497115758896.us-central1.run.app',
-      ),
-    ),
-    McpToolset(
-      connection_params=StreamableHTTPConnectionParams(
-        url='https://shopify-admin-remote-mcp-497115758896.us-central1.run.app',
-      ),
-    )
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_GSC_URL"),
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_GA_URL"),
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_LIGHTHOUSE_URL"),
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_PLAYWRIGHT_URL"),
+    *maybe_mcp_toolset("SHOPIFY_SENTINEL_MCP_SHOPIFY_ADMIN_URL"),
   ],
 )
