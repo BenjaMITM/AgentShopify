@@ -1,19 +1,22 @@
-# Use a newer Python runtime
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Install system dependencies required for some python packages to build
-RUN apt-get update && apt-get install -y \
-  build-essential \
-  && rm -rf /var/lib/apt/lists/*
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080
 
 WORKDIR /app
 
-# Copy and install requirements
-COPY ShopifySentinel/requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-  pip install --no-cache-dir -r requirements.txt
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the rest of the application
-COPY ShopifySentinel/ /app/ShopifySentinel/
+COPY ShopifySentinel /app/ShopifySentinel
 
-CMD ["python", "ShopifySentinel/main.py"]
+# ADK runtime required by ShopifySentinel/agent.py imports.
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir google-adk
+
+EXPOSE 8080
+
+# ADK API server is the documented production runtime for container deployments.
+CMD ["sh", "-c", "adk api_server /app --host 0.0.0.0 --port ${PORT:-8080}"]

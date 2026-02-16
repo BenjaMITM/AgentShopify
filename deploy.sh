@@ -1,55 +1,171 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Exit immediately if a command exits with a non-zero status.
-set -e
+MODE="agent-engine"
+PROJECT_ID="${GCLOUD_PROJECT:-}"
+REGION="${GCLOUD_REGION:-us-central1}"
+SERVICE_NAME="shopify-sentinel"
+AGENT_DIR="ShopifySentinel"
+STAGING_BUCKET="${STAGING_BUCKET:-}"
+ARTIFACT_REPO="agent-images"
+IMAGE_NAME="shopify-sentinel"
+IMAGE_TAG="$(date +%Y%m%d-%H%M%S)"
+ALLOW_UNAUTHENTICATED="false"
 
-# Prompt for user-specific configuration
-read -p "Enter your Google Cloud Project ID: " GCLOUD_PROJECT
-read -p "Enter the Google Cloud region (e.g., us-central1): " GCLOUD_REGION
-read -p "Enter a name for your service (e.g., shopify-sentinel): " SERVICE_NAME
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./deploy.sh [options]
 
-# Set the project and region for gcloud
-gcloud config set project $GCLOUD_PROJECT
-gcloud config set run/region $GCLOUD_REGION
+Modes:
+  --mode agent-engine   Deploy with ADK to Vertex AI Agent Engine (default)
+  --mode cloud-run      Build + push image, then deploy to Cloud Run
+  --mode push-only      Build + push image only
 
-# Define the image name for Google Container Registry
-IMAGE_NAME="gcr.io/newest-project-485620/shopify-sentinel"
+Options:
+  --project ID          Google Cloud project ID (or set GCLOUD_PROJECT)
+  --region REGION       Google Cloud region (default: us-central1)
+  --service NAME        Cloud Run service name (default: shopify-sentinel)
+  --agent-dir PATH      ADK agent directory (default: ShopifySentinel)
+  --staging-bucket URI  GCS bucket for adk deploy agent_engine
+  --repo NAME           Artifact Registry repo (default: agent-images)
+  --image NAME          Container image name (default: shopify-sentinel)
+  --tag TAG             Container image tag (default: timestamp)
+  --allow-unauthenticated true|false (Cloud Run only; default: false)
+  -h, --help            Show this help message
+USAGE
+}
 
-echo "--------------------------------------------------"
-echo "Building the Docker image..."
-echo "This may take a while."
-echo "NOTE: This step will likely fail if your requirements.txt contains local file paths ('file:///...')."
-echo "Please update requirements.txt to use packages from PyPI or another accessible repository."
-echo "--------------------------------------------------"
+require_cmd() {
+  local cmd="$1"
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "Error: required command not found: $cmd" >&2
+    exit 1
+  fi
+}
 
-# Build the Docker image
-docker build -t $IMAGE_NAME .
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --mode)
+      MODE="$2"
+      shift 2
+      ;;
+    --project)
+      PROJECT_ID="$2"
+      shift 2
+      ;;
+    --region)
+      REGION="$2"
+      shift 2
+      ;;
+    --service)
+      SERVICE_NAME="$2"
+      shift 2
+      ;;
+    --agent-dir)
+      AGENT_DIR="$2"
+      shift 2
+      ;;
+    --staging-bucket)
+      STAGING_BUCKET="$2"
+      shift 2
+      ;;
+    --repo)
+      ARTIFACT_REPO="$2"
+      shift 2
+      ;;
+    --image)
+      IMAGE_NAME="$2"
+      shift 2
+      ;;
+    --tag)
+      IMAGE_TAG="$2"
+      shift 2
+      ;;
+    --allow-unauthenticated)
+      ALLOW_UNAUTHENTICATED="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Error: unknown argument: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
 
-echo "--------------------------------------------------"
-echo "Pushing the Docker image to Google Container Registry..."
-echo "--------------------------------------------------"
+if [[ -z "$PROJECT_ID" ]]; then
+  read -r -p "Google Cloud project ID: " PROJECT_ID
+fi
 
-# Push the image to GCR
-docker push $IMAGE_NAME
+require_cmd gcloud
+gcloud config set project "$PROJECT_ID" >/dev/null
 
-echo "--------------------------------------------------"
-echo "Deploying the service to Google Cloud Run..."
-echo "This will be deployed as a worker service, not a web-facing application."
-echo "--------------------------------------------------"
+case "$MODE" in
+  agent-engine)
+    require_cmd adk
 
-# Deploy to Cloud Run.
-# --no-cpu-throttling is often useful for background workers
-# that need consistent processing, not just when a request comes in.
-# Since this is a worker, we don't expose any ports.
-gcloud run deploy $SERVICE_NAME 
-  --image $IMAGE_NAME 
-  --platform managed 
-  --no-cpu-throttling 
-  --no-allow-unauthenticated
+    if [[ -z "$STAGING_BUCKET" ]]; then
+      read -r -p "GCS staging bucket (name or gs:// URI): " STAGING_BUCKET
+    fi
 
-echo "--------------------------------------------------"
-echo "Deployment complete."
-echo "Your service '$SERVICE_NAME' is deployed to Cloud Run in region '$GCLOUD_REGION'."
-echo "You can manage your service in the Google Cloud Console."
-echo "--------------------------------------------------"
+    if [[ "$STAGING_BUCKET" != gs://* ]]; then
+      STAGING_BUCKET="gs://${STAGING_BUCKET}"
+    fi
 
+    echo "Deploying ADK agent to Vertex AI Agent Engine..."
+    adk deploy agent_engine "$AGENT_DIR" \
+      --project "$PROJECT_ID" \
+      --region "$REGION" \
+      --staging_bucket "$STAGING_BUCKET"
+    ;;
+
+  cloud-run|push-only)
+    gcloud services enable artifactregistry.googleapis.com run.googleapis.com cloudbuild.googleapis.com >/dev/null
+
+    if ! gcloud artifacts repositories describe "$ARTIFACT_REPO" --location "$REGION" >/dev/null 2>&1; then
+      echo "Creating Artifact Registry repository '$ARTIFACT_REPO' in '$REGION'..."
+      gcloud artifacts repositories create "$ARTIFACT_REPO" \
+        --repository-format docker \
+        --location "$REGION" \
+        --description "Container images for Shopify Sentinel"
+    fi
+
+    gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+    IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REPO}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+    echo "Building and pushing image with Cloud Build: $IMAGE_URI"
+    # Build in Cloud Build to avoid local architecture mismatches (e.g. arm64 images from Apple Silicon).
+    gcloud builds submit --tag "$IMAGE_URI" .
+
+    if [[ "$MODE" == "cloud-run" ]]; then
+      echo "Deploying to Cloud Run service: $SERVICE_NAME"
+
+      if [[ "$ALLOW_UNAUTHENTICATED" == "true" ]]; then
+        AUTH_FLAG="--allow-unauthenticated"
+      else
+        AUTH_FLAG="--no-allow-unauthenticated"
+      fi
+
+      gcloud run deploy "$SERVICE_NAME" \
+        --image "$IMAGE_URI" \
+        --region "$REGION" \
+        --platform managed \
+        --port 8080 \
+        --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${REGION},GOOGLE_GENAI_USE_VERTEXAI=TRUE" \
+        "$AUTH_FLAG"
+    else
+      echo "Image pushed successfully: $IMAGE_URI"
+    fi
+    ;;
+
+  *)
+    echo "Error: invalid mode '$MODE'. Use: agent-engine | cloud-run | push-only" >&2
+    exit 1
+    ;;
+esac
