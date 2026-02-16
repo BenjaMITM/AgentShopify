@@ -6,9 +6,10 @@ WORKDIR /app
 
 # Copy the requirements file and install dependencies
 COPY ShopifySentinel/requirements.txt .
-# Note: The requirements.txt file contains local file dependencies ("file:///...").
-# These will cause the build to fail. You need to replace them with
-# packages from PyPI or another accessible package repository.
+# Note: The requirements.txt file has been cleaned of local file dependencies.
+# However, it may still be missing some packages that were referenced via
+# local paths. If the build fails due to missing packages, you may need to
+# add them to requirements.txt manually.
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code

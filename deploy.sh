@@ -13,7 +13,7 @@ gcloud config set project $GCLOUD_PROJECT
 gcloud config set run/region $GCLOUD_REGION
 
 # Define the image name for Google Container Registry
-IMAGE_NAME="gcr.io/$GCLOUD_PROJECT/$SERVICE_NAME"
+IMAGE_NAME="gcr.io/newest-project-485620/shopify-sentinel"
 
 echo "--------------------------------------------------"
 echo "Building the Docker image..."
