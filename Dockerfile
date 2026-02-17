@@ -10,11 +10,11 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY ShopifySentinel /app/ShopifySentinel
+COPY shopify_sentinel /app/shopify_sentinel
 
 # Keep Cloud Run runtime aligned with Agent Engine dependencies.
 RUN python -m pip install --no-cache-dir --upgrade pip \
-    && python -m pip install --no-cache-dir -r /app/ShopifySentinel/requirements.txt
+    && python -m pip install --no-cache-dir -r /app/shopify_sentinel/requirements.txt
 
 EXPOSE 8080
 

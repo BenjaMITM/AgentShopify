@@ -5,7 +5,7 @@ MODE="agent-engine"
 PROJECT_ID="${GCLOUD_PROJECT:-}"
 REGION="${GCLOUD_REGION:-us-central1}"
 SERVICE_NAME="shopify-sentinel"
-AGENT_DIR="ShopifySentinel"
+AGENT_DIR="shopify_sentinel"
 STAGING_BUCKET="${STAGING_BUCKET:-}"
 ARTIFACT_REPO="agent-images"
 IMAGE_NAME="shopify-sentinel"
@@ -26,7 +26,7 @@ Options:
   --project ID          Google Cloud project ID (or set GCLOUD_PROJECT)
   --region REGION       Google Cloud region (default: us-central1)
   --service NAME        Cloud Run service name (default: shopify-sentinel)
-  --agent-dir PATH      ADK agent directory (default: ShopifySentinel)
+  --agent-dir PATH      ADK agent directory (default: shopify_sentinel)
   --staging-bucket URI  GCS bucket for adk deploy agent_engine
   --repo NAME           Artifact Registry repo (default: agent-images)
   --image NAME          Container image name (default: shopify-sentinel)
